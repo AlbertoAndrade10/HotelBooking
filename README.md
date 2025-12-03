@@ -1,6 +1,6 @@
 Booking Hotels Service
 
-Proyecto en desarrollo para reservas de habitaciones de hoteles
+Proyecto en desarrollo con arquitectura de microservicios para reservas de habitaciones de hoteles
 
 TECNOLOGÍAS
 - Spring Boot
@@ -8,4 +8,5 @@ TECNOLOGÍAS
 - Docker
 - Redis
 - Kafka
+
 
