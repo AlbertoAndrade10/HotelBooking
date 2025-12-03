@@ -24,11 +24,19 @@ export class RedisService implements OnModuleInit {
     return await this.client.get(key);
   }
 
+  async set(key: string, value: string): Promise<void> {
+    await this.client.set(key, value);
+  }
+  
   async setex(key: string, seconds: number, value: string): Promise<void> {
     await this.client.setEx(key, seconds, value);
   }
 
   async del(key: string): Promise<void> {
     await this.client.del(key);
+  }
+
+  async incr(key: string): Promise<number> {
+    return await this.client.incr(key);
   }
 }
