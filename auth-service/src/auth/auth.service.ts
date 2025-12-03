@@ -42,26 +42,26 @@ export class AuthService {
         this.userRepository.create({
           email,
           password: hash,
-          role: Role.USER, // explicit default role
+          role: Role.USER,
         })
       );
+
+      // init token version in redis = 0
+      await this.redisService.set(`token_version:${authUser.id}`, '0');
 
       // Emit event to UserService
       await this.kafkaService.sendUserRegisteredEvent({
         id: authUser.id,
         email: authUser.email,
         role: authUser.role
-
       });
 
       return { id: authUser.id, message: "User registered successfully" };
     } catch (error) {
       if (error instanceof BusinessException) throw error;
-
       if (error instanceof QueryFailedError) {
         throw new DataBaseException(`Database error during register: ${error.message}`);
       }
-
       throw new DataBaseException("Unknown error during register");
     }
   }
@@ -80,29 +80,27 @@ export class AuthService {
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) throw new InvalidCredentialsException();
 
-      // payloads include the token type
-      const accessPayload = { sub: user.id, email: user.email, type: 'access', role: user.role };
+      // get token version (default 0)
+      const versionStr = (await this.redisService.get(`token_version:${user.id}`)) ?? '0';
+      const version = Number(versionStr);
+
+      // access payload includes token version
+      const accessPayload = { sub: user.id, email: user.email, type: 'access', role: user.role, ver: version };
       const refreshPayload = { sub: user.id, type: 'refresh' };
 
-      // access short (15min), refresh long (7days)
-      const accessToken = this.jwtService.sign(accessPayload, {
-        expiresIn: '15m',
-        secret: process.env.JWT_ACCESS_SECRET,
-      });
-      const refreshToken = this.jwtService.sign(refreshPayload, {
-        expiresIn: '7d',
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
+      // Sign tokens (uses JwtModule defaults)
+      const accessToken = this.jwtService.sign(accessPayload, { expiresIn: '15m' });
+      const refreshToken = this.jwtService.sign(refreshPayload, { expiresIn: '7d' });
 
+      // store refresh token (same as before)
       await this.redisService.setex(
         `refresh_token:${user.id}`,
-        604800, // 7 days in sec
+        604800,
         refreshToken
       );
 
       return { accessToken, refreshToken };
     } catch (error) {
-
       if (error instanceof UserNotFoundException) throw error;
       if (error instanceof InvalidCredentialsException) throw error;
 
@@ -124,7 +122,10 @@ export class AuthService {
       const decoded = this.jwtService.decode(refreshToken) as any;
 
       if (decoded?.sub) {
+        // delete refresh token entry
         await this.redisService.del(`refresh_token:${decoded.sub}`);
+        // increment token version to invalidate all access tokens for this user
+        await this.redisService.incr(`token_version:${decoded.sub}`);
       }
     } catch (error) {
       throw new DataBaseException(`Error during logout: ${error.message}`);
@@ -183,8 +184,9 @@ export class AuthService {
     user.password = await bcrypt.hash(dto.newPassword, 10);
     await this.userRepository.save(user);
 
-    // Invalidate stored refresh token after password change
+    // Invalidate stored refresh token and increment token version
     await this.redisService.del(`refresh_token:${user.id}`);
+    await this.redisService.incr(`token_version:${user.id}`);
 
     return { message: "Password updated successfully" };
   }
