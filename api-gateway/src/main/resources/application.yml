@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: redispwd
+      timeout: 60000
+
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        # --- AUTH SERVICE (PÚBLICO) ---
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+        # --- USER SERVICE (CUALQUIER USUARIO AUTENTICADO) ---
+        # Aquí NO debe haber RoleFilter
+        # El UserService se encarga de validar si USER puede modificar solo su perfil.
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - JwtAuthFilter
+
+        # --- HOTEL MANAGEMENT (ADMIN & MANAGER) ---
+        - id: hotel-service
+          uri: lb://hotel-service
+          predicates:
+            - Path=/api/hotels/**
+          filters:
+            - JwtAuthFilter
+            - RoleFilter=ADMIN,MANAGER
+
+        # --- ROOMS (ADMIN & MANAGER) ---
+        - id: rooms-service
+          uri: lb://hotel-service
+          predicates:
+            - Path=/api/rooms/**
+          filters:
+            - JwtAuthFilter
+            - RoleFilter=ADMIN,MANAGER
+
+        # --- BOOKINGS (USER, ADMIN) ---
+        - id: booking-service
+          uri: lb://booking-service
+          predicates:
+            - Path=/api/bookings/**
+          filters:
+            - JwtAuthFilter
+            - RoleFilter=USER,ADMIN
+
+jwt:
+  secret: OIWJFGI0WJGIOJWIOFGJ0QWJRKOPQKRFJ120JIWEHFIJWH278RYFUH29HF92YTH928HFG2H4T8972GY
+
+server:
+  port: 8080
