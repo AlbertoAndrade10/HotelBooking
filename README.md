@@ -8,5 +8,6 @@ TECNOLOGÍAS
 - Docker
 - Redis
 - Kafka
+- PostgreSQL
 
 
