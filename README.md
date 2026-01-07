@@ -6,8 +6,8 @@ TECNOLOGÍAS
 - Spring Boot
 - NestJS
 - Docker
+- PostgreSQL
 - Redis
 - Kafka
-- PostgreSQL
 
 
